@@ -219,3 +219,184 @@ func main() {
 EOL
 
 echo "Estructura de la API para ${ENTITY_NAME} generada en el proyecto $PROJECT_NAME."
+
+# Archivo Dockerfile
+cat <<EOL > "$PROJECT_NAME/Dockerfile"
+# Etapa de construcción
+FROM golang:alpine AS build
+
+# GOPROXY resolves dependencies treefrom cache or repository
+ENV GOPROXY=https://proxy.golang.org
+
+WORKDIR /go/src/api
+COPY . .
+# Set OS as linux
+RUN GOOS=linux go build -o /go/bin/api cmd/main.go
+
+EXPOSE 8080
+
+FROM alpine
+COPY --from=build /go/bin/api /go/bin/api
+COPY --from=build /go/src/api/.env /go/bin/.env
+
+ENTRYPOINT ["/go/bin/api"]
+EOL
+
+echo "Estructura de la API para ${ENTITY_NAME} generada en el proyecto $PROJECT_NAME."
+
+
+
+# Crear estructura de carpetas para GitHub Actions
+mkdir -p "$PROJECT_NAME/.github/workflows"
+
+# Archivo dev.yml
+cat <<EOL > "$PROJECT_NAME/.github/workflows/dev.yml"
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: deploy cloud run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up environment
+        run: |
+          echo "PORT=\${{ secrets.PORT }}" > .env
+          echo "CONNECTION=\${{ secrets.CONNECTION_DEV }}" >> .env
+          echo "MAIL_PASSWORD=\${{ secrets.MAIL_PASSWORD }}" >> .env
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: \${{ github.actor }}
+          password: \${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push to GitHub Packages
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/pigside/${ENTITY_NAME_LOWER}:dev
+
+      - name: SSH and run command
+        uses: appleboy/ssh-action@v0.1.3
+        with:
+          host: \${{ secrets.SSH_HOST }}
+          port: \${{ secrets.SSH_PORT }}
+          username: \${{ secrets.SSH_USERNAME }}
+          password: \${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "Conexión SSH exitosa"
+            /scriptsv2/deploy_${ENTITY_NAME_LOWER}.sh
+EOL
+
+# Archivo test.yml
+cat <<EOL > "$PROJECT_NAME/.github/workflows/test.yml"
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: deploy cloud run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up environment
+        run: |
+          echo "PORT=\${{ secrets.PORT }}" > .env
+          echo "CONNECTION=\${{ secrets.CONNECTION_TEST }}" >> .env
+          echo "MAIL_PASSWORD=\${{ secrets.MAIL_PASSWORD }}" >> .env
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: \${{ github.actor }}
+          password: \${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push to GitHub Packages
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/pigside/${ENTITY_NAME_LOWER}:test
+
+      - name: SSH and run command
+        uses: appleboy/ssh-action@v0.1.3
+        with:
+          host: \${{ secrets.SSH_HOST }}
+          port: \${{ secrets.SSH_PORT }}
+          username: \${{ secrets.SSH_USERNAME }}
+          password: \${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "Conexión SSH exitosa"
+            /scriptsv2/deploy_${ENTITY_NAME_LOWER}.sh
+EOL
+
+# Archivo prod.yml
+cat <<EOL > "$PROJECT_NAME/.github/workflows/prod.yml"
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: deploy cloud run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up environment
+        run: |
+          echo "PORT=\${{ secrets.PORT }}" > .env
+          echo "CONNECTION=\${{ secrets.CONNECTION_PROD }}" >> .env
+          echo "MAIL_PASSWORD=\${{ secrets.MAIL_PASSWORD }}" >> .env
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: \${{ github.actor }}
+          password: \${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push to GitHub Packages
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/pigside/${ENTITY_NAME_LOWER}:prod
+
+      - name: SSH and run command
+        uses: appleboy/ssh-action@v0.1.3
+        with:
+          host: \${{ secrets.SSH_HOST_PROD }}
+          port: \${{ secrets.SSH_PORT }}
+          username: \${{ secrets.SSH_USERNAME }}
+          password: \${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "Conexión SSH exitosa"
+            /scriptsv2/deploy_${ENTITY_NAME_LOWER}.sh
+EOL
+
+echo "Estructura de la API para ${ENTITY_NAME} generada en el proyecto $PROJECT_NAME."
