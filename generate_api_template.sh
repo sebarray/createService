@@ -179,12 +179,14 @@ package config
 
 import (
     "log"
+    "os"
     "github.com/jmoiron/sqlx"
     _ "github.com/lib/pq"
 )
 
 func SetupDB() *sqlx.DB {
-    db, err := sqlx.Connect("postgres", "user=youruser password=yourpassword dbname=yourdb sslmode=disable")
+        conn:=os.Getenv("CONNECTION")
+    db, err := sqlx.Connect("postgres", conn)
     if err != nil {
         log.Fatal(err)
     }
@@ -192,6 +194,20 @@ func SetupDB() *sqlx.DB {
 }
 EOL
 
+# Archivo config env
+cat <<EOL > "$PROJECT_NAME/config/setenv.go"
+package config
+
+
+import "github.com/joho/godotenv"
+
+func Config() {
+	err := godotenv.Load("../.env")
+	if err != nil {
+		_ = godotenv.Load("/go/bin/.env")
+	}
+}
+EOL
 # Archivo principal
 cat <<EOL > "$PROJECT_NAME/cmd/main.go"
 package main
@@ -205,6 +221,10 @@ import (
     "${PROJECT_NAME}/usecases"
 )
 
+func init() {
+	config.Config()
+}
+
 func main() {
     db := config.SetupDB()
     ${ENTITY_NAME_LOWER}Repo := repository.New${ENTITY_NAME}Repository(db)
@@ -214,7 +234,7 @@ func main() {
     http.HandleFunc("/${ENTITY_NAME_LOWER}/register", ${ENTITY_NAME_LOWER}Handler.Register${ENTITY_NAME})
     http.HandleFunc("/${ENTITY_NAME_LOWER}/profile", ${ENTITY_NAME_LOWER}Handler.Get${ENTITY_NAME}Profile)
 
-    log.Fatal(http.ListenAndServe(":8080", nil))
+    log.Fatal(http.ListenAndServe(os.Getenv("PORT"), nil))
 }
 EOL
 
@@ -272,6 +292,7 @@ jobs:
           echo "PORT=\${{ secrets.PORT }}" > .env
           echo "CONNECTION=\${{ secrets.CONNECTION_DEV }}" >> .env
           echo "MAIL_PASSWORD=\${{ secrets.MAIL_PASSWORD }}" >> .env
+          echo "PSWD_JWT=\${{ secrets.PSWD_JWT}}" >> .env
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
@@ -322,6 +343,7 @@ jobs:
           echo "PORT=\${{ secrets.PORT }}" > .env
           echo "CONNECTION=\${{ secrets.CONNECTION_TEST }}" >> .env
           echo "MAIL_PASSWORD=\${{ secrets.MAIL_PASSWORD }}" >> .env
+          echo "PSWD_JWT=\${{ secrets.PSWD_JWT}}" >> .env
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
@@ -372,6 +394,8 @@ jobs:
           echo "PORT=\${{ secrets.PORT }}" > .env
           echo "CONNECTION=\${{ secrets.CONNECTION_PROD }}" >> .env
           echo "MAIL_PASSWORD=\${{ secrets.MAIL_PASSWORD }}" >> .env
+          echo "PSWD_JWT=\${{ secrets.PSWD_JWT}}" >> .env
+         
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
